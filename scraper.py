@@ -1,4 +1,5 @@
 from selenium import webdriver
+from datetime import datetime
 from lxml import etree
 
 
@@ -94,7 +95,111 @@ def compileListMovies (chrome, baseUrl, fName):
 
   return 'Ok!'
 
+def uniqify (seq, idfun=None):
+  """Make list unique
+
+  Taken from: https://www.peterbe.com/plog/uniqifiers-benchmark
+  """
+
+  if idfun is None:
+    def idfun(x): return x
+
+  seen = {}
+  result = []
+  for item in seq:
+    marker = idfun(item)
+    if marker in seen:
+      continue
+
+    seen[marker] = 1
+    result.append(item)
+
+  return result
+
+
+def stripChar (line):
+  """Strip unwanted characters from line
+  """
+
+  newLine =  ''.join(c if (c.isalnum() or (c in ' \'/!|:",.')) else ' ' for c in line)
+  newLine = ' '.join(newLine.split())
+  if newLine.endswith(','):
+    newLine = newLine[:-1]
+
+  return newLine
+
+
+def parseMovieInfo (html):
+  """Parse webpage for movie info
+  """
+
+  movieInfo = []
+
+  # Look for the title
+  title = html.xpath('//h1[@class="movie-title"]/text()')[0]
+  title = stripChar(title)
+
+  # Look for movie description
+  desc = html.xpath('//div[@class="movie-description"]')[0]
+  etree.strip_tags(desc , '*')
+  desc = stripChar(desc.text)
+
+  # Look for category
+  cat = html.xpath('//h1[@class="movie-title"]/../h5/text()')[0]
+  cat = stripChar(cat).split(' | ')
+  cat = ' | '.join(sorted(cat))
+
+  # Look for run time
+  runtime = html.xpath('//div[@class="movie-information"]/div[4]')[0]
+  etree.strip_tags(runtime , '*')
+  runtime = runtime.text.split(':')[1]
+
+  # Look for dates
+  dates = html.xpath('//span[@class="start-date"]/text()')
+  for d in dates:
+    miniInfo = {}
+    dObj = datetime.strptime(d, '%d %B %Y %I:%M %p')
+
+    miniInfo['Title']        = title
+    miniInfo['Description']  = desc
+    miniInfo['Category']     = cat
+    miniInfo['Running Time'] = runtime
+    miniInfo['Date']         = dObj.strftime('%d %b')
+    miniInfo['Time']         = dObj.strftime('%H:%M')
+
+    movieInfo.append(miniInfo)
+
+  return movieInfo
+
+
+def writeCsv (fName, listDict):
+  pass
+
+
+def traverseMovies (chrome, baseUrl, fIn, fOut):
+  """Get get movie info from list of URL
+  """
+
+  # Load log
+  listMovies = []
+  with open(fIn, 'r') as f:
+    for line in f:
+      listMovies.append(line)
+
+  # Remove duplicates
+  listMovies = uniqify(listMovies)
+
+  # Parse for movie info
+  listDictMovies = []
+  for url in listMovies:
+    page = getPage(chrome, baseUrl + '/' + url)
+    listDictMovies += parseMovieInfo(page)
+
+  # Write to csv
+
+
+
 baseUrl = 'https://www.viff.org/Online'
 
-
+t = baseUrl + '/' + 'default.asp?BOparam::WScontent::loadArticle::permalink=f19923-the-yard'
 
