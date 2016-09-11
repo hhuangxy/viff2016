@@ -1,6 +1,7 @@
 from selenium import webdriver
 from datetime import datetime
 from lxml import etree
+import csv
 
 
 def startSession ():
@@ -27,6 +28,7 @@ def getPage (chrome, url):
 
   # Go get page
   chrome.get(url)
+
   return etree.HTML(chrome.page_source)
 
 
@@ -95,6 +97,7 @@ def compileListMovies (chrome, baseUrl, fName):
 
   return 'Ok!'
 
+
 def uniqify (seq, idfun=None):
   """Make list unique
 
@@ -146,7 +149,8 @@ def parseMovieInfo (html):
 
   # Look for category
   cat = html.xpath('//h1[@class="movie-title"]/../h5/text()')[0]
-  cat = stripChar(cat).split(' | ')
+  cat = stripChar(cat).split('|')
+  cat = [c.strip() for c in cat]
   cat = ' | '.join(sorted(cat))
 
   # Look for run time
@@ -173,7 +177,31 @@ def parseMovieInfo (html):
 
 
 def writeCsv (fName, listDict):
-  pass
+  """Write to csv
+  """
+
+  keys = [
+    'Title',
+    'Description',
+    'Category',
+    'Running Time',
+    'Date',
+    'Time'
+  ]
+
+  # Open file
+  with open(fName, 'w', newline='') as csvfile:
+    cwr = csv.writer(csvfile)
+
+    # Get header
+    cwr.writerow(keys)
+
+    # Build/write rows
+    for d in listDict:
+      row = [d[k] for k in keys]
+      cwr.writerow(row)
+
+  return 'Ok!'
 
 
 def traverseMovies (chrome, baseUrl, fIn, fOut):
@@ -184,6 +212,10 @@ def traverseMovies (chrome, baseUrl, fIn, fOut):
   listMovies = []
   with open(fIn, 'r') as f:
     for line in f:
+      line == line.strip()
+      if line == '':
+        break
+
       listMovies.append(line)
 
   # Remove duplicates
@@ -196,10 +228,10 @@ def traverseMovies (chrome, baseUrl, fIn, fOut):
     listDictMovies += parseMovieInfo(page)
 
   # Write to csv
+  writeCsv(fOut, listDictMovies)
 
+  return 'Ok!'
 
 
 baseUrl = 'https://www.viff.org/Online'
-
-t = baseUrl + '/' + 'default.asp?BOparam::WScontent::loadArticle::permalink=f19923-the-yard'
 
