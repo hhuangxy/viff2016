@@ -47,7 +47,7 @@ def getNextUrl (html):
   """Get next URL
   """
 
-  nextUrl = {}
+  nextUrl = ''
 
   # Get current page
   raw = html.xpath('//li[@class="av-paging-links active"]/span[@class="current"]/text()')
@@ -67,5 +67,34 @@ def getNextUrl (html):
   return nextUrl
 
 
-baseUrl = 'https://www.viff.org/Online/default.asp'
+def compileListMovies (chrome, baseUrl, fName):
+  """Traverse site for list of movies
+  """
+
+  listMovies = []
+  nextUrl = baseUrl
+  while True:
+    # Get page
+    page = getPage(chrome, nextUrl)
+
+    # Get list of movies
+    listMovies += getListMovies(page)
+
+    # Get next URL
+    nextUrl = getNextUrl(page)
+    if nextUrl == '':
+      break
+
+    nextUrl = baseUrl + '/' + nextUrl
+
+  # Write listMovies to file
+  with open(fName, 'w', newline='') as f:
+    for movie in listMovies:
+      f.write(movie['href'] + '\n')
+
+  return 'Ok!'
+
+baseUrl = 'https://www.viff.org/Online'
+
+
 
