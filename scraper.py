@@ -70,6 +70,67 @@ def getNextUrl (html):
   return nextUrl
 
 
+def uniqify (seq, idfun=None):
+  """Make list unique
+
+  Taken from: https://www.peterbe.com/plog/uniqifiers-benchmark
+  """
+
+  if idfun is None:
+    def idfun(x): return x
+
+  seen = {}
+  result = []
+  for item in seq:
+    marker = idfun(item)
+    if marker in seen:
+      continue
+
+    seen[marker] = 1
+    result.append(item)
+
+  return result
+
+
+def stripChar (line):
+  """Strip unwanted characters from line
+  """
+  newLine = [c for c in line if ord(c) < 255]
+  newLine = [c if (c.isalnum() or (c in ' \'/!|:",.')) else ' ' for c in newLine]
+  newLine = ''.join(newLine).split()
+  newLine = ' '.join(newLine).strip(',')
+
+  return newLine
+
+
+def writeCsv (fName, listDict):
+  """Write to csv
+  """
+
+  keys = [
+    'Title',
+    'Description',
+    'Category',
+    'Running Time',
+    'Date',
+    'Time'
+  ]
+
+  # Open file
+  with open(fName, 'w', newline='') as csvfile:
+    cwr = csv.writer(csvfile)
+
+    # Get header
+    cwr.writerow(keys)
+
+    # Build/write rows
+    for d in listDict:
+      row = [d[k] for k in keys]
+      cwr.writerow(row)
+
+  return 'Ok!'
+
+
 def compileListMovies (chrome, baseUrl, fName):
   """Traverse site for list of movies
   """
@@ -98,38 +159,60 @@ def compileListMovies (chrome, baseUrl, fName):
   return 'Ok!'
 
 
-def uniqify (seq, idfun=None):
-  """Make list unique
-
-  Taken from: https://www.peterbe.com/plog/uniqifiers-benchmark
+def compileListGenres (chrome, baseUrl, fName):
+  """Traverse site for genres
   """
 
-  if idfun is None:
-    def idfun(x): return x
+  genres = {
+    "Action, Thrills and Suspense" : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=FD335D3A-2B4E-49E6-A9AD-D903211473E5",
+    "Comedy"                       : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=1F714C6A-C18A-40AE-984A-7598775B7CB8",
+    "Documentary"                  : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=2A3F7BA0-632A-4F2A-904A-96C5BB4F30B5",
+    "Drama"                        : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=51492B66-A572-4D43-9F60-F32FBAC897D8",
+    "Experimental and Avant Garde" : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=6815B00E-49C0-40E7-9FAF-81AD4642A7BB",
+    "Fantasy, Sci-fi and Horror"   : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=564BF55C-2F82-47A2-9F33-109D9918B494",
+    "Romance"                      : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=C5AAC588-2D02-46B4-967C-FB2B822C33A9",
+    "Shorts"                       : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=6CC8110C-DA38-4FD5-86B6-36711950D7E7"
+  }
 
-  seen = {}
-  result = []
-  for item in seq:
-    marker = idfun(item)
-    if marker in seen:
-      continue
+  dictMovies = {}
+  for genre in genres:
+    nextUrl = baseUrl + '/' + genres[genre]
 
-    seen[marker] = 1
-    result.append(item)
+    while True:
+      # Get page
+      page = getPage(chrome, nextUrl)
 
-  return result
+      # Get list of movies
+      movies = page.xpath('//div[@class="item-name"]/text()')
+      movies = [stripChar(m) for m in movies]
 
+      # Add genre to movie
+      for movie in movies:
+        if movie in dictMovies:
+          dictMovies[movie].append(genre)
+        else:
+          dictMovies[movie] = [genre]
 
-def stripChar (line):
-  """Strip unwanted characters from line
-  """
+      # Get next URL
+      nextUrl = getNextUrl(page)
+      if nextUrl == '':
+        break
 
-  newLine =  ''.join(c if (c.isalnum() or (c in ' \'/!|:",.')) else ' ' for c in line)
-  newLine = ' '.join(newLine.split())
-  if newLine.endswith(','):
-    newLine = newLine[:-1]
+      nextUrl = baseUrl + '/' + nextUrl
 
-  return newLine
+  # Write dictMovies to file
+  keys = sorted(dictMovies.keys())
+  keys = [stripChar(k) for k in keys]
+  with open(fName, 'w', newline='') as csvfile:
+    cwr = csv.writer(csvfile)
+
+    for key in keys:
+      g = sorted(uniqify(dictMovies[key]))
+      g = [stripChar(z) for z in g]
+      row = [key, ' | '.join(g)]
+      cwr.writerow(row)
+
+  return 'Ok!'
 
 
 def parseMovieInfo (html):
@@ -174,34 +257,6 @@ def parseMovieInfo (html):
     movieInfo.append(miniInfo)
 
   return movieInfo
-
-
-def writeCsv (fName, listDict):
-  """Write to csv
-  """
-
-  keys = [
-    'Title',
-    'Description',
-    'Category',
-    'Running Time',
-    'Date',
-    'Time'
-  ]
-
-  # Open file
-  with open(fName, 'w', newline='') as csvfile:
-    cwr = csv.writer(csvfile)
-
-    # Get header
-    cwr.writerow(keys)
-
-    # Build/write rows
-    for d in listDict:
-      row = [d[k] for k in keys]
-      cwr.writerow(row)
-
-  return 'Ok!'
 
 
 def traverseMovies (chrome, baseUrl, fIn, fOut):
