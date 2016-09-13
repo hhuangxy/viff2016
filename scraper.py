@@ -283,7 +283,10 @@ def parseMovieInfo (html, genres, series):
   if desc:
     desc = desc[0]
     etree.strip_tags(desc , '*')
-    desc = stripChar(desc.text)
+    if desc.text:
+      desc = stripChar(desc.text)
+    else:
+      desc = 'NA'
   else:
     desc = 'NA'
 
@@ -350,7 +353,8 @@ def writeCsv (fName, listDict):
     'Date',
     'Time',
     'Genre',
-    'Series'
+    'Series',
+    'URL'
   ]
 
   # Open file
@@ -409,8 +413,12 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fOut):
   # Parse for movie info
   listDictMovies = []
   for url in listMovies:
-    page = getPage(chrome, baseUrl + '/' + url)
-    listDictMovies += parseMovieInfo(page, genres, series)
+    url = baseUrl + '/' + url
+    page = getPage(chrome, url)
+    lm = parseMovieInfo(page, genres, series)
+    for l in lm:
+      l['URL'] = url
+      listDictMovies.append(l)
 
   # Write to csv
   writeCsv(fOut, listDictMovies)
