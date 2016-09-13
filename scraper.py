@@ -2,6 +2,7 @@ from selenium import webdriver
 from datetime import datetime
 from lxml import etree
 import csv
+import re
 
 
 def startSession ():
@@ -95,40 +96,11 @@ def uniqify (seq, idfun=None):
 def stripChar (line):
   """Strip unwanted characters from line
   """
-  newLine = [c for c in line if ord(c) < 255]
-  newLine = [c if (c.isalnum() or (c in ' \'/!|:",.')) else ' ' for c in newLine]
-  newLine = ''.join(newLine).split()
-  newLine = ' '.join(newLine).strip(',')
+
+  newLine = ''.join(c if (32 <= ord(c) && ord(c) <= 255) else ' ' for c in line)
+  newLine = ' '.join(newLine.strip(',').split())
 
   return newLine
-
-
-def writeCsv (fName, listDict):
-  """Write to csv
-  """
-
-  keys = [
-    'Title',
-    'Description',
-    'Category',
-    'Running Time',
-    'Date',
-    'Time'
-  ]
-
-  # Open file
-  with open(fName, 'w', newline='') as csvfile:
-    cwr = csv.writer(csvfile)
-
-    # Get header
-    cwr.writerow(keys)
-
-    # Build/write rows
-    for d in listDict:
-      row = [d[k] for k in keys]
-      cwr.writerow(row)
-
-  return 'Ok!'
 
 
 def compileListMovies (chrome, baseUrl, fName):
@@ -152,6 +124,7 @@ def compileListMovies (chrome, baseUrl, fName):
     nextUrl = baseUrl + '/' + nextUrl
 
   # Write listMovies to file
+  listMovies = uniqify(listMovies)
   with open(fName, 'w', newline='') as f:
     for movie in listMovies:
       f.write(movie['href'] + '\n')
@@ -286,31 +259,50 @@ def compileListSeries (chrome, baseUrl, fName):
   return 'Ok!'
 
 
-def parseMovieInfo (html):
+def parseMovieInfo (html, genres, series):
   """Parse webpage for movie info
   """
 
   movieInfo = []
 
   # Look for the title
-  title = html.xpath('//h1[@class="movie-title"]/text()')[0]
-  title = stripChar(title)
+  title = html.xpath('//h1[@class="movie-title"]/text()')
+  if title:
+    title = stripChar(title[0])
+  else:
+    title = 'NA'
 
   # Look for movie description
-  desc = html.xpath('//div[@class="movie-description"]')[0]
-  etree.strip_tags(desc , '*')
-  desc = stripChar(desc.text)
+  desc = html.xpath('//div[@class="movie-description"]')
+  if desc:
+    desc = desc[0]
+    etree.strip_tags(desc , '*')
+    desc = stripChar(desc.text)
+  else:
+    desc = 'NA'
 
   # Look for category
-  cat = html.xpath('//h1[@class="movie-title"]/../h5/text()')[0]
-  cat = stripChar(cat).split('|')
-  cat = [c.strip() for c in cat]
-  cat = ' | '.join(sorted(cat))
+  cat = html.xpath('//h1[@class="movie-title"]/../h5/text()')
+  if cat:
+    cat = cat[0]
+    cat = stripChar(cat).split('|')
+    cat = [c.strip() for c in cat]
+    cat = ' | '.join(sorted(cat))
+  else:
+    cat = 'NA'
 
   # Look for run time
-  runtime = html.xpath('//div[@class="movie-information"]/div[4]')[0]
-  etree.strip_tags(runtime , '*')
-  runtime = runtime.text.split(':')[1]
+  runtime = html.xpath('//div[@class="movie-information"]')
+  if runtime:
+    runtime = runtime[0]
+    etree.strip_tags(runtime , '*')
+    runtime = runtime.text
+  else:
+    runtime = 'NA'
+
+  m = re.search(r'(\d+ mins?)', runtime, re.I)
+  if m:
+    runtime = m.group(0)
 
   # Look for dates
   dates = html.xpath('//span[@class="start-date"]/text()')
@@ -325,18 +317,58 @@ def parseMovieInfo (html):
     miniInfo['Date']         = dObj.strftime('%d %b')
     miniInfo['Time']         = dObj.strftime('%H:%M')
 
+    if title in genres:
+      miniInfo['Genre'] = genres[title]
+    else:
+      miniInfo['Genre'] = 'NA'
+
+    if title in series:
+      miniInfo['Series'] = series[title]
+    else:
+      miniInfo['Series'] = 'NA'
+
     movieInfo.append(miniInfo)
 
   return movieInfo
 
 
-def traverseMovies (chrome, baseUrl, fIn, fOut):
+def writeCsv (fName, listDict):
+  """Write to csv
+  """
+
+  keys = [
+    'Title',
+    'Description',
+    'Category',
+    'Running Time',
+    'Date',
+    'Time',
+    'Genre',
+    'Series'
+  ]
+
+  # Open file
+  with open(fName, 'w', newline='') as csvfile:
+    cwr = csv.writer(csvfile)
+
+    # Get header
+    cwr.writerow(keys)
+
+    # Build/write rows
+    for d in listDict:
+      row = [d[k] for k in keys]
+      cwr.writerow(row)
+
+  return 'Ok!'
+
+
+def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fOut):
   """Get get movie info from list of URL
   """
 
-  # Load log
+  # Load list
   listMovies = []
-  with open(fIn, 'r') as f:
+  with open(fList, 'r') as f:
     for line in f:
       line == line.strip()
       if line == '':
@@ -344,14 +376,35 @@ def traverseMovies (chrome, baseUrl, fIn, fOut):
 
       listMovies.append(line)
 
-  # Remove duplicates
-  listMovies = uniqify(listMovies)
+  # Load genres
+  genres = {}
+  with open(fGenre, 'r') as csvfile:
+    crd = csv.reader(csvfile)
+
+    for line in crd:
+      line = [l.strip() for l in line]
+      if line[0] == '':
+        break
+
+      genres[line[0]] = line[1]
+
+  # Load series
+  series = {}
+  with open(fSeries, 'r') as csvfile:
+    crd = csv.reader(csvfile)
+
+    for line in crd:
+      line = [l.strip() for l in line]
+      if line[0] == '':
+        break
+
+      series[line[0]] = line[1]
 
   # Parse for movie info
   listDictMovies = []
   for url in listMovies:
     page = getPage(chrome, baseUrl + '/' + url)
-    listDictMovies += parseMovieInfo(page)
+    listDictMovies += parseMovieInfo(page, genres, series)
 
   # Write to csv
   writeCsv(fOut, listDictMovies)
