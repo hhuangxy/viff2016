@@ -97,7 +97,7 @@ def stripChar (line):
   """Strip unwanted characters from line
   """
 
-  newLine = ''.join(c if (32 <= ord(c) && ord(c) <= 255) else ' ' for c in line)
+  newLine = ''.join(c if (32 <= ord(c) and ord(c) <= 255) else ' ' for c in line)
   newLine = ' '.join(newLine.strip(',').split())
 
   return newLine
@@ -107,14 +107,14 @@ def compileListMovies (chrome, baseUrl, fName):
   """Traverse site for list of movies
   """
 
-  listMovies = []
+  listDictMovies = []
   nextUrl = baseUrl
   while True:
     # Get page
     page = getPage(chrome, nextUrl)
 
     # Get list of movies
-    listMovies += getListMovies(page)
+    listDictMovies += getListMovies(page)
 
     # Get next URL
     nextUrl = getNextUrl(page)
@@ -123,11 +123,17 @@ def compileListMovies (chrome, baseUrl, fName):
 
     nextUrl = baseUrl + '/' + nextUrl
 
-  # Write listMovies to file
+  # Serialize
+  listMovies = []
+  for dictMovies in listDictMovies:
+    listMovies.append(dictMovies['href'])
+
   listMovies = uniqify(listMovies)
+
+  # Write listMovies to file
   with open(fName, 'w', newline='') as f:
     for movie in listMovies:
-      f.write(movie['href'] + '\n')
+      f.write(movie + '\n')
 
   return 'Ok!'
 
