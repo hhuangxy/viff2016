@@ -56,8 +56,8 @@ def getNextUrl (html):
   # Get current page
   raw = html.xpath('//li[@class="av-paging-links active"]/span[@class="current"]/text()')
   if raw:
-    currentPage = int(raw[0])
-    nextPage = currentPage + 1
+    currPage = int(raw[0])
+    nextPage = currPage + 1
 
     # Find next url
     listRaw = html.xpath('//li[@class="av-paging-links"]/a')
@@ -109,9 +109,11 @@ def compileListMovies (chrome, baseUrl, fName):
 
   listDictMovies = []
   nextUrl = baseUrl
+  pageCnt = 0
   while True:
     # Get page
     page = getPage(chrome, nextUrl)
+    pageCnt += 1
 
     # Get list of movies
     listDictMovies += getListMovies(page)
@@ -133,33 +135,41 @@ def compileListMovies (chrome, baseUrl, fName):
   # Write listMovies to file
   with open(fName, 'w', newline='') as f:
     for movie in listMovies:
+      if baseUrl not in movie:
+        pLink = movie.split('permalink=')[-1]
+        movie = baseUrl + '/article/' + pLink
+
       f.write(movie + '\n')
 
-  return 'Ok!'
+  return 'compileListMovies: %d page(s)' % pageCnt
 
 
 def compileListGenres (chrome, baseUrl, fName):
   """Traverse site for genres
   """
 
+  currYear = '2019'
   genres = {
-    "Action, Thrills and Suspense" : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=FD335D3A-2B4E-49E6-A9AD-D903211473E5",
-    "Comedy"                       : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=1F714C6A-C18A-40AE-984A-7598775B7CB8",
-    "Documentary"                  : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=2A3F7BA0-632A-4F2A-904A-96C5BB4F30B5",
-    "Drama"                        : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=51492B66-A572-4D43-9F60-F32FBAC897D8",
-    "Experimental and Avant Garde" : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=6815B00E-49C0-40E7-9FAF-81AD4642A7BB",
-    "Fantasy, Sci-fi and Horror"   : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=564BF55C-2F82-47A2-9F33-109D9918B494",
-    "Romance"                      : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=C5AAC588-2D02-46B4-967C-FB2B822C33A9",
-    "Shorts"                       : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=6CC8110C-DA38-4FD5-86B6-36711950D7E7"
+    "Action, Thrills and Suspense" : currYear + '-genre-action',
+    "Comedy"                       : currYear + '-genre-comedy',
+    "Documentary"                  : currYear + '-genre-documentary',
+    "Drama"                        : currYear + '-genre-drama',
+    "Experimental and Avant Garde" : currYear + '-genre-experimental',
+    "Fantasy, Sci-fi and Horror"   : currYear + '-genre-fantasy',
+    "Romance"                      : currYear + '-genre-romance',
+    "Shorts"                       : currYear + '-shorts'
   }
 
   dictMovies = {}
+  pageCnt = []
   for genre in genres:
-    nextUrl = baseUrl + '/' + genres[genre]
+    nextUrl = baseUrl + '/article/' + genres[genre]
+    pageCnt.append(0)
 
     while True:
       # Get page
       page = getPage(chrome, nextUrl)
+      pageCnt[-1] += 1
 
       # Get list of movies
       movies = page.xpath('//div[@class="item-name"]/text()')
@@ -177,7 +187,7 @@ def compileListGenres (chrome, baseUrl, fName):
       if nextUrl == '':
         break
 
-      nextUrl = baseUrl + '/' + nextUrl
+      nextUrl = baseUrl + '/article/' + nextUrl
 
   # Write dictMovies to file
   keys = sorted(dictMovies.keys())
@@ -191,7 +201,7 @@ def compileListGenres (chrome, baseUrl, fName):
       row = [key, ' | '.join(g)]
       cwr.writerow(row)
 
-  return 'Ok!'
+  return 'compileListGenres: %s page(s)' % pageCnt
 
 
 def compileListSeries (chrome, baseUrl, fName):
@@ -317,7 +327,7 @@ def parseMovieInfo (html, genres, series):
   dates = html.xpath('//span[@class="start-date"]/text()')
   for d in dates:
     miniInfo = {}
-    dObj = datetime.strptime(d, '%d %B %Y %I:%M %p')
+    dObj = datetime.strptime(d, '%A, %B %d, %Y at %I:%M %p')
 
     miniInfo['Title']        = title
     miniInfo['Description']  = desc
@@ -427,4 +437,6 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fOut):
 
 
 baseUrl = 'https://www.viff.org/Online'
-
+cc = startSession()
+#print(compileListMovies(cc, baseUrl, 'movies.csv'))
+print(compileListGenres(cc, baseUrl, 'genres.csv'))
