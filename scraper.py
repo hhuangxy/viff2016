@@ -148,22 +148,115 @@ def compileListGenres (chrome, baseUrl, fName):
   """Traverse site for genres
   """
 
-  currYear = '2019'
+  currYear = str(datetime.today().year)
   genres = {
-    "Action, Thrills and Suspense" : currYear + '-genre-action',
+    "Action, Thrills & Suspense"   : currYear + '-genre-action',
     "Comedy"                       : currYear + '-genre-comedy',
     "Documentary"                  : currYear + '-genre-documentary',
     "Drama"                        : currYear + '-genre-drama',
-    "Experimental and Avant Garde" : currYear + '-genre-experimental',
-    "Fantasy, Sci-fi and Horror"   : currYear + '-genre-fantasy',
+    "Experimental & Avant Garde"   : currYear + '-genre-experimental',
+    "Fantasy, Sci-fi & Horror"     : currYear + '-genre-fantasy',
     "Romance"                      : currYear + '-genre-romance',
     "Shorts"                       : currYear + '-shorts'
   }
 
+  pageCnt = compileListGeneric(chrome, baseUrl, fName, genres)
+
+  return 'compileListGenres: %s page(s)' % pageCnt
+
+
+def compileListSeries (chrome, baseUrl, fName):
+  """Traverse site for series
+  """
+
+  currYear = str(datetime.today().year)
+  series = {
+    "Altered States"              : currYear + '-series-altered-states',
+    "BC Spotlight"                : currYear + '-series-bcspotlight',
+    "Contemporary World Cinema"   : currYear + '-series-contemporaryworldcinema',
+    "Dragons & Tigers"            : currYear + '-series-dragonsandtigers',
+    "Focus on Italy"              : currYear + '-series-focusonitaly',
+    "Future//Present"             : currYear + '-series-future-present',
+    "Galas"                       : currYear + '-series-galas',
+    "Gateway"                     : currYear + '-series-gateway',
+    "High School Outreach"        : currYear + '-education',
+    "Impact"                      : currYear + '-series-impact',
+    "Insights"                    : currYear + '-series-insights',
+    "MODES"                       : currYear + '-series-modes',
+    "Shorts Programs"             : 'shorts-' + currYear,
+    "Special Presentations"       : currYear + '-series-specialpresentations',
+    "Spotlight on France"         : currYear + '-series-spotlightfrance',
+    "True North"                  : currYear + '-series-true-north',
+    "Vanguard"                    : currYear + '-series-vanguard'
+  }
+
+  pageCnt = compileListGeneric(chrome, baseUrl, fName, series)
+
+  return 'compileListSeries: %s page(s)' % pageCnt
+
+
+def compileListThemes (chrome, baseUrl, fName):
+  """Traverse site for themes
+  """
+
+  currYear = str(datetime.today().year)
+  themes = {
+    "Action, Thrills & Suspense"      : currYear + '-theme-action',
+    "Adventures Outdoors"             : currYear + '-theme-adventure',
+    "Animals"                         : currYear + '-theme-animals',
+    "Animation"                       : currYear + '-theme-animation',
+    "Architecture"                    : currYear + '-theme-architecture',
+    "Art & Photography"               : currYear + '-theme-art-photography',
+    "Award Winners"                   : currYear + '-theme-award-winners',
+    "Biography"                       : currYear + '-theme-biography',
+    "Buddhist Interest"               : currYear + '-theme-buddhist-interest',
+    "Comedy"                          : currYear + '-theme-comedy',
+    "Crime"                           : currYear + '-theme-crime',
+    "Dance"                           : currYear + '-theme-dance',
+    "Drama"                           : currYear + '-theme-drama',
+    "Economics & Globalization"       : currYear + '-theme-economics',
+    "Environment"                     : currYear + '-theme-environment',
+    "Experimental & Avant Garde"      : currYear + '-theme-experimental',
+    "Family Relations"                : currYear + '-theme-family-relations',
+    "Fantasy, Sci-fi & Horror"        : currYear + '-theme-fantasy',
+    "Filmmaking"                      : currYear + '-theme-filmmaking',
+    "Food, Farm & Garden"             : currYear + '-theme-food',
+    "Health"                          : currYear + '-theme-health',
+    "Human Rights & Social Justice"   : currYear + '-theme-human-rights',
+    "High School Program"             : currYear + '-education',
+    "History"                         : currYear + '-theme-history',
+    "Immigration"                     : currYear + '-theme-immigration',
+    "Indigenous"                      : currYear + '-theme-indigenous',
+    "Islamic World"                   : currYear + '-theme-islamic-world',
+    "Jewish Interest"                 : currYear + '-theme-jewish-interest',
+    "LGBTQ"                           : currYear + '-theme-lgbtq',
+    "Literary"                        : currYear + '-theme-literary',
+    "Music"                           : currYear + '-theme-music',
+    "Mystery"                         : currYear + '-theme-mystery',
+    "Politics"                        : currYear + '-theme-politics',
+    "Religion, Spirituality & Myth"   : currYear + '-theme-religion',
+    "Romance"                         : currYear + '-theme-romance',
+    "Science & Technology"            : currYear + '-theme-science',
+    "Sex & Eroticism"                 : currYear + '-theme-sex',
+    "Theatre"                         : currYear + '-theme-theatre',
+    "War & Espionage"                 : currYear + '-theme-war',
+    "Women Directors"                 : currYear + '-theme-women-directors',
+    "Youth Under 18 May Attend"       : currYear + '-youth'
+  }
+
+  pageCnt = compileListGeneric(chrome, baseUrl, fName, themes)
+
+  return 'compileListThemes: %s page(s)' % pageCnt
+
+
+def compileListGeneric (chrome, baseUrl, fName, srchDict):
+  """Generic list compilier
+  """
+
   dictMovies = {}
   pageCnt = []
-  for genre in genres:
-    nextUrl = baseUrl + '/article/' + genres[genre]
+  for crit in srchDict:
+    nextUrl = baseUrl + '/article/' + srchDict[crit]
     pageCnt.append(0)
 
     while True:
@@ -178,9 +271,9 @@ def compileListGenres (chrome, baseUrl, fName):
       # Add genre to movie
       for movie in movies:
         if movie in dictMovies:
-          dictMovies[movie].append(genre)
+          dictMovies[movie].append(crit)
         else:
-          dictMovies[movie] = [genre]
+          dictMovies[movie] = [crit]
 
       # Get next URL
       nextUrl = getNextUrl(page)
@@ -196,83 +289,12 @@ def compileListGenres (chrome, baseUrl, fName):
     cwr = csv.writer(csvfile)
 
     for key in keys:
-      g = sorted(uniqify(dictMovies[key]))
-      g = [stripChar(z) for z in g]
-      row = [key, ' | '.join(g)]
-      cwr.writerow(row)
-
-  return 'compileListGenres: %s page(s)' % pageCnt
-
-
-def compileListSeries (chrome, baseUrl, fName):
-  """Traverse site for series
-  """
-
-  series = {
-    "Altered States"	             : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=EC7D5A6D-EC4D-4568-AF93-ABF27E20250F",
-    "Arts and Letters"	           : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=D2E30BE6-23B6-4BB4-8A5B-A7FD48ED472B",
-    "BC Spotlight"	               : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=0A1CA5AA-123C-4410-B537-E279E4FF7E41",
-    "Canadian Images"	             : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=8D2D6389-CF61-4D41-B41B-73E214257660",
-    "Contemporary World Cinema"	   : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=3607CE49-AD16-4E9C-B969-3D69C842B243",
-    "Creator Talks"	               : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=08C03402-5156-4F53-9097-5641F8F92A08",
-    "Documentaries"	               : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=A976ADB5-1503-4059-9CDF-C7A5BB9CE90C",
-    "Dragons and Tigers"	         : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=7443AFF9-DF25-4D7C-9A07-FC86AC40690D",
-    "Episodic"	                   : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=C8AFF6CA-0C79-427F-9A8E-3CDFCA2FF90F",
-    "Future//Present"	             : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=57318F0D-9744-4610-BF84-A0B5D4DDD313",
-    "Galas"	                       : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=F2FD677F-5A35-4D89-82AF-E6CC4F593154",
-    "High School Outreach"	       : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=ABC13DAA-FD73-46A4-B1F6-4ED6D0513418",
-    "Industry Exchange"	           : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=C6056084-0F08-46FD-988E-2C3FA8AA07FB",
-    "Nights at Hub"	               : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=A8F16792-0D9D-4855-9F3F-F6DD05939097",
-    "Shorts Programs"	             : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=91103A7D-A395-4E7B-BE9D-C0BCE7E0F362",
-    "Special Presentations"	       : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=9B8D6AB5-9AD6-4F4D-8135-1EFD2AAE3793",
-    "Spotlight on France"	         : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=9051B2CF-2D6F-45A0-ABCB-D0658D5CB757",
-    "Style in Film"	               : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=B5AFC27E-5C46-4F94-AF19-4ED18CFECB91",
-    "Sustainable Production Forum" : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=57E3A7F5-A41A-42F2-B8FB-0880E26DE67A",
-    "Totally Indie Day"	           : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=24517DB3-F73C-4640-A405-02B8589F67B7",
-    "VIFF Impact"	                 : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=DFF45979-84C0-47B0-A630-F48FA61FDF76",
-    "Virtual Reality"	             : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=91C31DA9-49AB-4A9C-91BC-7B1FE1829D3D",
-    "VIFF Repeats"	               : "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=18F35588-7839-47CE-B7AF-119CB661FE8B"
-  }
-
-  dictMovies = {}
-  for ser in series:
-    nextUrl = baseUrl + '/' + series[ser]
-
-    while True:
-      # Get page
-      page = getPage(chrome, nextUrl)
-
-      # Get list of movies
-      movies = page.xpath('//div[@class="item-name"]/text()')
-      movies = [stripChar(m) for m in movies]
-
-      # Add series to movie
-      for movie in movies:
-        if movie in dictMovies:
-          dictMovies[movie].append(ser)
-        else:
-          dictMovies[movie] = [ser]
-
-      # Get next URL
-      nextUrl = getNextUrl(page)
-      if nextUrl == '':
-        break
-
-      nextUrl = baseUrl + '/' + nextUrl
-
-  # Write dictMovies to file
-  keys = sorted(dictMovies.keys())
-  keys = [stripChar(k) for k in keys]
-  with open(fName, 'w', newline='') as csvfile:
-    cwr = csv.writer(csvfile)
-
-    for key in keys:
       s = sorted(uniqify(dictMovies[key]))
       s = [stripChar(z) for z in s]
       row = [key, ' | '.join(s)]
       cwr.writerow(row)
 
-  return 'Ok!'
+  return pageCnt
 
 
 def parseMovieInfo (html, genres, series):
@@ -436,7 +458,11 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fOut):
   return 'Ok!'
 
 
-baseUrl = 'https://www.viff.org/Online'
-cc = startSession()
-#print(compileListMovies(cc, baseUrl, 'movies.csv'))
-print(compileListGenres(cc, baseUrl, 'genres.csv'))
+if __name__ == '__main__':
+  baseUrl = 'https://www.viff.org/Online'
+  cc = startSession()
+  print(compileListMovies(cc, baseUrl, 'movies.csv'))
+  print(compileListGenres(cc, baseUrl, 'genres.csv'))
+  print(compileListSeries(cc, baseUrl, 'series.csv'))
+  print(compileListThemes(cc, baseUrl, 'themes.csv'))
+

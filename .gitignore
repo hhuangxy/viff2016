@@ -141,3 +141,4 @@ $RECYCLE.BIN/
 *.csv
 *.txt
 *.xlsx
+.vscode
