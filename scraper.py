@@ -133,7 +133,7 @@ def compileListMovies (chrome, baseUrl, fName):
   listMovies = uniqify(listMovies)
 
   # Write listMovies to file
-  with open(fName, 'w', newline='') as f:
+  with open(fName, 'w') as f:
     for movie in listMovies:
       if baseUrl not in movie:
         pLink = movie.split('permalink=')[-1]
@@ -297,76 +297,57 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
   return pageCnt
 
 
-def parseMovieInfo (html, genres, series):
+def parseMovieInfo (html, bigDict):
   """Parse webpage for movie info
   """
 
   movieInfo = []
+  miniInfo = {}
 
-  # Look for the title
-  title = html.xpath('//h1[@class="movie-title"]/text()')
-  if title:
-    title = stripChar(title[0])
-  else:
-    title = 'NA'
+  dictXpath = {
+    'Title'         : '//h1[@class="movie-title"]',
+    'Description'   : '//div[@class="movie-description"]',
+    'Category'      : '//h1[@class="movie-title"]/../h5',
+    'Running Time'  : '//div[@class="movie-information"]'
+  }
+  for key in dictXpath:
+    temp = html.xpath(dictXpath[key])
 
-  # Look for movie description
-  desc = html.xpath('//div[@class="movie-description"]')
-  if desc:
-    desc = desc[0]
-    etree.strip_tags(desc , '*')
-    if desc.text:
-      desc = stripChar(desc.text)
+    # No matches
+    if not temp:
+      miniInfo[key] = 'NA'
+      continue
+    temp = temp[0]
+
+    # Strip tags
+    etree.strip_tags(temp, '*')
+    if not temp.text:
+      miniInfo[key] = 'NA'
+      continue
+    temp = temp.text
+
+    if key == 'Running Time':
+      m = re.search(r'(\d+ mins?)', temp, re.I)
+      if not m:
+        miniInfo[key] = 'NA'
+        continue
+      miniInfo[key] = m.group(0)
     else:
-      desc = 'NA'
-  else:
-    desc = 'NA'
+      miniInfo[key] = stripChar(temp)
 
-  # Look for category
-  cat = html.xpath('//h1[@class="movie-title"]/../h5/text()')
-  if cat:
-    cat = cat[0]
-    cat = stripChar(cat).split('|')
-    cat = [c.strip() for c in cat]
-    cat = ' | '.join(sorted(cat))
-  else:
-    cat = 'NA'
-
-  # Look for run time
-  runtime = html.xpath('//div[@class="movie-information"]')
-  if runtime:
-    runtime = runtime[0]
-    etree.strip_tags(runtime , '*')
-    runtime = runtime.text
-  else:
-    runtime = 'NA'
-
-  m = re.search(r'(\d+ mins?)', runtime, re.I)
-  if m:
-    runtime = m.group(0)
+  # Fill in genre, series, etc
+  for key in bigDict:
+    if miniInfo['Title'] in bigDict[key]:
+      miniInfo[key] = bigDict[key][miniInfo['Title']]
+    else:
+      miniInfo[key] = 'NA'
 
   # Look for dates
   dates = html.xpath('//span[@class="start-date"]/text()')
   for d in dates:
-    miniInfo = {}
     dObj = datetime.strptime(d, '%A, %B %d, %Y at %I:%M %p')
-
-    miniInfo['Title']        = title
-    miniInfo['Description']  = desc
-    miniInfo['Category']     = cat
-    miniInfo['Running Time'] = runtime
-    miniInfo['Date']         = dObj.strftime('%d %b')
-    miniInfo['Time']         = dObj.strftime('%H:%M')
-
-    if title in genres:
-      miniInfo['Genre'] = genres[title]
-    else:
-      miniInfo['Genre'] = 'NA'
-
-    if title in series:
-      miniInfo['Series'] = series[title]
-    else:
-      miniInfo['Series'] = 'NA'
+    miniInfo['Date'] = dObj.strftime('%d %b')
+    miniInfo['Time'] = dObj.strftime('%H:%M')
 
     movieInfo.append(miniInfo)
 
@@ -386,6 +367,7 @@ def writeCsv (fName, listDict):
     'Time',
     'Genre',
     'Series',
+    'Themes',
     'URL'
   ]
 
@@ -404,7 +386,7 @@ def writeCsv (fName, listDict):
   return 'Ok!'
 
 
-def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fOut):
+def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fOut):
   """Get get movie info from list of URL
   """
 
@@ -412,42 +394,35 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fOut):
   listMovies = []
   with open(fList, 'r') as f:
     for line in f:
-      line == line.strip()
+      line = line.strip()
       if line == '':
         break
 
       listMovies.append(line)
 
-  # Load genres
-  genres = {}
-  with open(fGenre, 'r') as csvfile:
-    crd = csv.reader(csvfile)
+  bigDict = {}
+  dictFiles = {
+    'Genre' : fGenre,
+    'Series' : fSeries,
+    'Themes' : fThemes
+  }
+  for key in dictFiles:
+    bigDict[key] = {}
+    with open(dictFiles[key], 'r') as csvfile:
+      crd = csv.reader(csvfile)
 
-    for line in crd:
-      line = [l.strip() for l in line]
-      if line[0] == '':
-        break
+      for line in crd:
+        line = [l.strip() for l in line]
+        if line[0] == '':
+          break
 
-      genres[line[0]] = line[1]
-
-  # Load series
-  series = {}
-  with open(fSeries, 'r') as csvfile:
-    crd = csv.reader(csvfile)
-
-    for line in crd:
-      line = [l.strip() for l in line]
-      if line[0] == '':
-        break
-
-      series[line[0]] = line[1]
+        bigDict[key][line[0]] = line[1]
 
   # Parse for movie info
   listDictMovies = []
   for url in listMovies:
-    url = baseUrl + '/' + url
     page = getPage(chrome, url)
-    lm = parseMovieInfo(page, genres, series)
+    lm = parseMovieInfo(page, bigDict)
     for l in lm:
       l['URL'] = url
       listDictMovies.append(l)
@@ -462,7 +437,8 @@ if __name__ == '__main__':
   baseUrl = 'https://www.viff.org/Online'
   cc = startSession()
   print(compileListMovies(cc, baseUrl, 'movies.csv'))
-  print(compileListGenres(cc, baseUrl, 'genres.csv'))
-  print(compileListSeries(cc, baseUrl, 'series.csv'))
-  print(compileListThemes(cc, baseUrl, 'themes.csv'))
+  #print(compileListGenres(cc, baseUrl, 'genres.csv'))
+  #print(compileListSeries(cc, baseUrl, 'series.csv'))
+  #print(compileListThemes(cc, baseUrl, 'themes.csv'))
+  print(traverseMovies(cc, baseUrl, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'output.csv'))
 
