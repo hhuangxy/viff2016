@@ -3,6 +3,7 @@ from datetime import datetime
 from lxml import etree
 import csv
 import re
+import omdb
 
 
 def startSession ():
@@ -297,7 +298,7 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
   return pageCnt
 
 
-def parseMovieInfo (html, bigDict):
+def parseMovieInfo (omdb, html, bigDict):
   """Parse webpage for movie info
   """
 
@@ -311,25 +312,23 @@ def parseMovieInfo (html, bigDict):
     'Running Time'  : '//div[@class="movie-information"]'
   }
   for key in dictXpath:
+    miniInfo[key] = 'NA'
     temp = html.xpath(dictXpath[key])
 
     # No matches
     if not temp:
-      miniInfo[key] = 'NA'
       continue
     temp = temp[0]
 
     # Strip tags
     etree.strip_tags(temp, '*')
     if not temp.text:
-      miniInfo[key] = 'NA'
       continue
     temp = temp.text
 
     if key == 'Running Time':
       m = re.search(r'(\d+ mins?)', temp, re.I)
       if not m:
-        miniInfo[key] = 'NA'
         continue
       miniInfo[key] = m.group(0)
     else:
@@ -337,10 +336,21 @@ def parseMovieInfo (html, bigDict):
 
   # Fill in genre, series, etc
   for key in bigDict:
+    miniInfo[key] = 'NA'
     if miniInfo['Title'] in bigDict[key]:
       miniInfo[key] = bigDict[key][miniInfo['Title']]
-    else:
-      miniInfo[key] = 'NA'
+
+  # Add ratings
+  miniInfo['IMDB'] = 'NA'
+  miniInfo['RT'] = 'NA'
+  result = omdb.search(title=miniInfo['Title'])
+  if result:
+    ratings = result.json()['Ratings']
+    for r in ratings:
+      if r['Source'] == 'Internet Movie Database':
+        miniInfo['IMDB'] = r['Value']
+      elif r['Source'] == 'Rotten Tomatoes':
+        miniInfo['RT'] = r['Value']
 
   # Look for dates
   dates = html.xpath('//span[@class="start-date"]/text()')
@@ -365,6 +375,8 @@ def writeCsv (fName, listDict):
     'Running Time',
     'Date',
     'Time',
+    'IMDB',
+    'RT',
     'Genre',
     'Series',
     'Themes',
@@ -386,7 +398,7 @@ def writeCsv (fName, listDict):
   return 'Ok!'
 
 
-def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fOut):
+def traverseMovies (chrome, omdb, baseUrl, fList, fGenre, fSeries, fThemes, fOut):
   """Get get movie info from list of URL
   """
 
@@ -422,7 +434,7 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fOut):
   listDictMovies = []
   for url in listMovies:
     page = getPage(chrome, url)
-    lm = parseMovieInfo(page, bigDict)
+    lm = parseMovieInfo(omdb, page, bigDict)
     for l in lm:
       l['URL'] = url
       listDictMovies.append(l)
@@ -436,9 +448,10 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fOut):
 if __name__ == '__main__':
   baseUrl = 'https://www.viff.org/Online'
   cc = startSession()
-  print(compileListMovies(cc, baseUrl, 'movies.csv'))
-  #print(compileListGenres(cc, baseUrl, 'genres.csv'))
-  #print(compileListSeries(cc, baseUrl, 'series.csv'))
-  #print(compileListThemes(cc, baseUrl, 'themes.csv'))
-  print(traverseMovies(cc, baseUrl, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'output.csv'))
+  oa = omdb.Api(apikey='5dcad8c4')
+  print(compileListMovies(cc, baseUrl, 'movies.txt'))
+  print(compileListGenres(cc, baseUrl, 'genres.csv'))
+  print(compileListSeries(cc, baseUrl, 'series.csv'))
+  print(compileListThemes(cc, baseUrl, 'themes.csv'))
+  print(traverseMovies(cc, oa, baseUrl, 'movies.txt', 'genres.csv', 'series.csv', 'themes.csv', 'output.csv'))
 
