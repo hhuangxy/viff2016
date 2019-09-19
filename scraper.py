@@ -34,20 +34,6 @@ def getPage (chrome, url):
   return etree.HTML(chrome.page_source)
 
 
-def getListMovies (html):
-  """Get list of movie titles
-  """
-
-  listMovies = []
-
-  # Get list of movies
-  listRaw = html.xpath('//div[@class="item-name"]/a')
-  for raw in listRaw:
-    listMovies.append(raw.attrib)
-
-  return listMovies
-
-
 def getNextUrl (html):
   """Get next URL
   """
@@ -108,16 +94,24 @@ def compileListMovies (chrome, baseUrl, fName):
   """Traverse site for list of movies
   """
 
-  listDictMovies = []
+  dictMovies = {}
   nextUrl = baseUrl
   pageCnt = 0
+
   while True:
     # Get page
     page = getPage(chrome, nextUrl)
     pageCnt += 1
 
     # Get list of movies
-    listDictMovies += getListMovies(page)
+    movies = page.xpath('//div[@class="item-name"]/a')
+
+    # Add title and url to movie dictionary
+    for movie in movies:
+      title = stripChar(movie.text)
+      url   = movie.attrib['href']
+      if title not in dictMovies:
+        dictMovies[title] = url
 
     # Get next URL
     nextUrl = getNextUrl(page)
@@ -126,21 +120,19 @@ def compileListMovies (chrome, baseUrl, fName):
 
     nextUrl = baseUrl + '/' + nextUrl
 
-  # Serialize
-  listMovies = []
-  for dictMovies in listDictMovies:
-    listMovies.append(dictMovies['href'])
+  # Write dictMovies to file
+  keys = sorted(dictMovies.keys())
+  with open(fName, 'w', newline='') as csvfile:
+    cwr = csv.writer(csvfile)
 
-  listMovies = uniqify(listMovies)
+    for key in keys:
+      if baseUrl in dictMovies[key]:
+        plink = dictMovies[key]
+      else:
+        plink = baseUrl + '/article/' + dictMovies[key].split('permalink=')[-1]
 
-  # Write listMovies to file
-  with open(fName, 'w') as f:
-    for movie in listMovies:
-      if baseUrl not in movie:
-        pLink = movie.split('permalink=')[-1]
-        movie = baseUrl + '/article/' + pLink
-
-      f.write(movie + '\n')
+      row = [key, plink]
+      cwr.writerow(row)
 
   return 'compileListMovies: %d page(s)' % pageCnt
 
@@ -269,7 +261,7 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
       movies = page.xpath('//div[@class="item-name"]/text()')
       movies = [stripChar(m) for m in movies]
 
-      # Add genre to movie
+      # Add search criteria to movie dictionary
       for movie in movies:
         if movie in dictMovies:
           dictMovies[movie].append(crit)
@@ -285,7 +277,6 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
 
   # Write dictMovies to file
   keys = sorted(dictMovies.keys())
-  keys = [stripChar(k) for k in keys]
   with open(fName, 'w', newline='') as csvfile:
     cwr = csv.writer(csvfile)
 
@@ -449,9 +440,9 @@ if __name__ == '__main__':
   baseUrl = 'https://www.viff.org/Online'
   cc = startSession()
   oa = omdb.Api(apikey='5dcad8c4')
-  print(compileListMovies(cc, baseUrl, 'movies.txt'))
+  print(compileListMovies(cc, baseUrl, 'movies.csv'))
   print(compileListGenres(cc, baseUrl, 'genres.csv'))
   print(compileListSeries(cc, baseUrl, 'series.csv'))
   print(compileListThemes(cc, baseUrl, 'themes.csv'))
-  print(traverseMovies(cc, oa, baseUrl, 'movies.txt', 'genres.csv', 'series.csv', 'themes.csv', 'output.csv'))
+  #print(traverseMovies(cc, oa, baseUrl, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'output.csv'))
 
