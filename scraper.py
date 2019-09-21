@@ -302,7 +302,7 @@ def getRatings (omdb, dictMovies):
   dictMovies['RT']   = 'NA'
 
   # Search IMDB and RT
-  result = omdb.search(title=dictMovies['Title'])
+  result = omdb.search(title=dictMovies['Title'], release_year=dictMovies['Year'])
   if result:
     result = result.json()
     if result['Response'] != 'False':
@@ -326,7 +326,8 @@ def parseMovieInfo (omdb, bigDict, html, url, listDictMovies):
     'Title'         : '//h1[@class="movie-title"]',
     'Description'   : '//div[@class="movie-description"]',
     'Category'      : '//h1[@class="movie-title"]/../h5',
-    'Running Time'  : '//div[@class="movie-information"]'
+    'Running Time'  : '//div[@class="movie-information"]',
+    'Year'          : '//div[@class="movie-information"]'
   }
   for key in dictXpath:
     miniInfo[key] = 'NA'
@@ -347,7 +348,12 @@ def parseMovieInfo (omdb, bigDict, html, url, listDictMovies):
       m = re.search(r'(\d+ mins?)', temp, re.I)
       if not m:
         continue
-      miniInfo[key] = m.group(0)
+      miniInfo[key] = m.group(1)
+    elif key == 'Year':
+      m = re.search(r'Year: (\d+)', temp, re.I)
+      if not m:
+        continue
+      miniInfo[key] = m.group(1)
     else:
       miniInfo[key] = stripChar(temp)
 
@@ -382,18 +388,19 @@ def writeCsv (fName, listDict):
 
   keys = [
     'Title',
-    'Description',
-    'Category',
-    'Running Time',
     'Date',
     'Time',
+    'Running Time',
     'During Work',
+    'Year',
     'IMDB',
     'RT',
+    'Category',
     'Genre',
     'Series',
     'Themes',
-    'URL'
+    'URL',
+    'Description'
   ]
 
   # Open file
