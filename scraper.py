@@ -137,7 +137,9 @@ def compileListMovies (chrome, baseUrl, fName):
         plink = dictMovies[key]
       else:
         plink = baseUrl + '/article/' + dictMovies[key].split('permalink=')[-1]
-      row = [key, plink]
+
+      # Title can be inconsistent so only save the link
+      row = [plink]
       cwr.writerow(row)
 
   return 'compileListMovies: %d page(s)' % pageCnt
@@ -292,54 +294,32 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
   return pageCnt
 
 
-def compileListRatings (omdb, fList, fName):
+def getRatings (omdb, dictMovies):
   """Ratings list compilier
   """
 
-  # Get list of movies
-  listMovies = []
-  with open(fList, 'r') as csvfile:
-    for line in csv.reader(csvfile):
-      line = [l.strip() for l in line]
-      if line[0] == '':
-        break
-      listMovies.append(line[0])
+  dictMovies['IMDB'] = 'NA'
+  dictMovies['RT']   = 'NA'
 
-  # Compile list of ratings
-  dictMovies = {}
-  for title in listMovies:
-    dictMovies[title] = {}
-    dictMovies[title]['IMDB'] = 'NA'
-    dictMovies[title]['RT']   = 'NA'
+  # Search IMDB and RT
+  result = omdb.search(title=dictMovies['Title'])
+  if result:
+    result = result.json()
+    if result['Response'] != 'False':
+      ratings = result['Ratings']
+      for r in ratings:
+        if r['Source'] == 'Internet Movie Database':
+          dictMovies['IMDB'] = r['Value']
+        elif r['Source'] == 'Rotten Tomatoes':
+          dictMovies['RT']   = r['Value']
 
-    # Search IMDB and RT
-    result = omdb.search(title=title)
-    if result:
-      result = result.json()
-      if result['Response'] != 'False':
-        ratings = result['Ratings']
-        for r in ratings:
-          if r['Source'] == 'Internet Movie Database':
-            dictMovies[title]['IMDB'] = r['Value']
-          elif r['Source'] == 'Rotten Tomatoes':
-            dictMovies[title]['RT']   = r['Value']
-
-  # Write dictMovies to file
-  keys = sorted(listMovies)
-  with open(fName, 'w', newline='') as csvfile:
-    cwr = csv.writer(csvfile)
-    for key in keys:
-      row = [key, dictMovies[key]['IMDB'], dictMovies[key]['RT']]
-      cwr.writerow(row)
-
-  return 'compileListRatings Ok!'
+  return 'getRatings Ok!'
 
 
-def parseMovieInfo (html, bigDict):
+def parseMovieInfo (omdb, bigDict, html, url, listDictMovies):
   """Parse webpage for movie info
   """
 
-  movieInfo = []
   miniInfo = {}
 
   dictXpath = {
@@ -377,6 +357,12 @@ def parseMovieInfo (html, bigDict):
     if miniInfo['Title'] in bigDict[key]:
       miniInfo[key] = bigDict[key][miniInfo['Title']]
 
+  # Add ratings
+  getRatings(omdb, miniInfo)
+
+  # Add URL
+  miniInfo['URL'] = url
+
   # Look for dates
   dates = html.xpath('//span[@class="start-date"]/text()')
   for d in dates:
@@ -385,9 +371,9 @@ def parseMovieInfo (html, bigDict):
     miniInfo['Time'] = dObj.strftime('%H:%M')
     miniInfo['During Work'] = isDuringWork(dObj)
 
-    movieInfo.append(miniInfo.copy())
+    listDictMovies.append(miniInfo.copy())
 
-  return movieInfo
+  return 'parseMovieInfo Ok!'
 
 
 def writeCsv (fName, listDict):
@@ -425,7 +411,7 @@ def writeCsv (fName, listDict):
   return 'Ok!'
 
 
-def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fRatings, fOut):
+def traverseMovies (chrome, omdb, fList, fGenre, fSeries, fThemes, fOut):
   """Get get movie info from list of URL
   """
 
@@ -433,35 +419,30 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fRatings, 
 
   # Load data
   dictFiles = {
-    'URL'     : fList,
-    'Genre'   : fGenre,
-    'Series'  : fSeries,
-    'Themes'  : fThemes,
-    'Ratings' : fRatings
+    'URL'    : fList,
+    'Genre'  : fGenre,
+    'Series' : fSeries,
+    'Themes' : fThemes
   }
   for key in dictFiles:
-    if key == 'Ratings':
-      bigDict['IMDB'] = {}
-      bigDict['RT']   = {}
+    if key == 'URL':
+      bigDict[key] = []
     else:
       bigDict[key] = {}
-
     with open(dictFiles[key], 'r') as csvfile:
       for line in csv.reader(csvfile):
         line = [l.strip() for l in line]
         if line[0] != '':
-          if key == 'Ratings':
-            bigDict['IMDB'][line[0]] = line[1]
-            bigDict['RT'][line[0]]   = line[2]
+          if key == 'URL':
+            bigDict[key].append(line[0])
           else:
             bigDict[key][line[0]] = line[1]
 
   # Parse for movie info
   listDictMovies = []
-  for url in bigDict['URL'].values():
+  for url in bigDict['URL']:
     page = getPage(chrome, url)
-    lm = parseMovieInfo(page, bigDict)
-    listDictMovies.extend(lm)
+    parseMovieInfo(omdb, bigDict, page, url, listDictMovies)
 
   # Write to csv
   return writeCsv(fOut, listDictMovies)
@@ -475,6 +456,5 @@ if __name__ == '__main__':
   print(compileListGenres(cc, baseUrl, 'genres.csv'))
   print(compileListSeries(cc, baseUrl, 'series.csv'))
   print(compileListThemes(cc, baseUrl, 'themes.csv'))
-  print(compileListRatings(oa, 'movies.csv', 'ratings.csv'))
-  print(traverseMovies(cc, baseUrl, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'ratings.csv', 'output.csv'))
+  print(traverseMovies(cc, oa, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'output.csv'))
 
