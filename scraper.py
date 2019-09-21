@@ -88,6 +88,18 @@ def stripChar (line):
   return newLine
 
 
+def isDuringWork (dateObj):
+  """Determine if this is during work
+  """
+
+  afterFive = dateObj.hour >= 18
+  weekend  = dateObj.weekday() >= 5
+  if (weekend or afterFive):
+    return 'N'
+  else:
+    return 'Y'
+
+
 def compileListMovies (chrome, baseUrl, fName):
   """Traverse site for list of movies
   """
@@ -320,7 +332,7 @@ def compileListRatings (omdb, fList, fName):
       row = [key, dictMovies[key]['IMDB'], dictMovies[key]['RT']]
       cwr.writerow(row)
 
-  return 'Ok!'
+  return 'compileListRatings Ok!'
 
 
 def parseMovieInfo (html, bigDict):
@@ -371,6 +383,7 @@ def parseMovieInfo (html, bigDict):
     dObj = datetime.strptime(d, '%A, %B %d, %Y at %I:%M %p')
     miniInfo['Date'] = dObj.strftime('%d %b')
     miniInfo['Time'] = dObj.strftime('%H:%M')
+    miniInfo['During Work'] = isDuringWork(dObj)
 
     movieInfo.append(miniInfo.copy())
 
@@ -388,6 +401,7 @@ def writeCsv (fName, listDict):
     'Running Time',
     'Date',
     'Time',
+    'During Work',
     'IMDB',
     'RT',
     'Genre',
@@ -448,22 +462,19 @@ def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fRatings, 
     page = getPage(chrome, url)
     lm = parseMovieInfo(page, bigDict)
     listDictMovies.extend(lm)
-    break
 
   # Write to csv
-  writeCsv(fOut, listDictMovies)
-
-  return 'Ok!'
+  return writeCsv(fOut, listDictMovies)
 
 
 if __name__ == '__main__':
   baseUrl = 'https://www.viff.org/Online'
   cc = startSession()
   oa = omdb.Api(apikey='5dcad8c4')
-  #print(compileListMovies(cc, baseUrl, 'movies.csv'))
-  #print(compileListGenres(cc, baseUrl, 'genres.csv'))
-  #print(compileListSeries(cc, baseUrl, 'series.csv'))
-  #print(compileListThemes(cc, baseUrl, 'themes.csv'))
-  #print(compileListRatings(oa, 'movies.csv', 'ratings.csv'))
+  print(compileListMovies(cc, baseUrl, 'movies.csv'))
+  print(compileListGenres(cc, baseUrl, 'genres.csv'))
+  print(compileListSeries(cc, baseUrl, 'series.csv'))
+  print(compileListThemes(cc, baseUrl, 'themes.csv'))
+  print(compileListRatings(oa, 'movies.csv', 'ratings.csv'))
   print(traverseMovies(cc, baseUrl, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'ratings.csv', 'output.csv'))
 
