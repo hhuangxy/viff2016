@@ -50,7 +50,6 @@ def getNextUrl (html):
     listRaw = html.xpath('//li[@class="av-paging-links"]/a')
     for raw in listRaw:
       url = raw.attrib['href']
-
       if ('current_page=%i' % nextPage) in url:
         nextUrl = url
         break
@@ -73,7 +72,6 @@ def uniqify (seq, idfun=None):
     marker = idfun(item)
     if marker in seen:
       continue
-
     seen[marker] = 1
     result.append(item)
 
@@ -97,7 +95,6 @@ def compileListMovies (chrome, baseUrl, fName):
   dictMovies = {}
   nextUrl = baseUrl
   pageCnt = 0
-
   while True:
     # Get page
     page = getPage(chrome, nextUrl)
@@ -117,20 +114,17 @@ def compileListMovies (chrome, baseUrl, fName):
     nextUrl = getNextUrl(page)
     if nextUrl == '':
       break
-
     nextUrl = baseUrl + '/' + nextUrl
 
   # Write dictMovies to file
   keys = sorted(dictMovies.keys())
   with open(fName, 'w', newline='') as csvfile:
     cwr = csv.writer(csvfile)
-
     for key in keys:
       if baseUrl in dictMovies[key]:
         plink = dictMovies[key]
       else:
         plink = baseUrl + '/article/' + dictMovies[key].split('permalink=')[-1]
-
       row = [key, plink]
       cwr.writerow(row)
 
@@ -251,7 +245,6 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
   for crit in srchDict:
     nextUrl = baseUrl + '/article/' + srchDict[crit]
     pageCnt.append(0)
-
     while True:
       # Get page
       page = getPage(chrome, nextUrl)
@@ -272,14 +265,12 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
       nextUrl = getNextUrl(page)
       if nextUrl == '':
         break
-
       nextUrl = baseUrl + '/article/' + nextUrl
 
   # Write dictMovies to file
   keys = sorted(dictMovies.keys())
   with open(fName, 'w', newline='') as csvfile:
     cwr = csv.writer(csvfile)
-
     for key in keys:
       s = sorted(uniqify(dictMovies[key]))
       s = [stripChar(z) for z in s]
@@ -289,7 +280,50 @@ def compileListGeneric (chrome, baseUrl, fName, srchDict):
   return pageCnt
 
 
-def parseMovieInfo (omdb, html, bigDict):
+def compileListRatings (omdb, fList, fName):
+  """Ratings list compilier
+  """
+
+  # Get list of movies
+  listMovies = []
+  with open(fList, 'r') as csvfile:
+    for line in csv.reader(csvfile):
+      line = [l.strip() for l in line]
+      if line[0] == '':
+        break
+      listMovies.append(line[0])
+
+  # Compile list of ratings
+  dictMovies = {}
+  for title in listMovies:
+    dictMovies[title] = {}
+    dictMovies[title]['IMDB'] = 'NA'
+    dictMovies[title]['RT']   = 'NA'
+
+    # Search IMDB and RT
+    result = omdb.search(title=title)
+    if result:
+      result = result.json()
+      if result['Response'] != 'False':
+        ratings = result['Ratings']
+        for r in ratings:
+          if r['Source'] == 'Internet Movie Database':
+            dictMovies[title]['IMDB'] = r['Value']
+          elif r['Source'] == 'Rotten Tomatoes':
+            dictMovies[title]['RT']   = r['Value']
+
+  # Write dictMovies to file
+  keys = sorted(listMovies)
+  with open(fName, 'w', newline='') as csvfile:
+    cwr = csv.writer(csvfile)
+    for key in keys:
+      row = [key, dictMovies[key]['IMDB'], dictMovies[key]['RT']]
+      cwr.writerow(row)
+
+  return 'Ok!'
+
+
+def parseMovieInfo (html, bigDict):
   """Parse webpage for movie info
   """
 
@@ -331,18 +365,6 @@ def parseMovieInfo (omdb, html, bigDict):
     if miniInfo['Title'] in bigDict[key]:
       miniInfo[key] = bigDict[key][miniInfo['Title']]
 
-  # Add ratings
-  miniInfo['IMDB'] = 'NA'
-  miniInfo['RT'] = 'NA'
-  result = omdb.search(title=miniInfo['Title'])
-  if result:
-    ratings = result.json()['Ratings']
-    for r in ratings:
-      if r['Source'] == 'Internet Movie Database':
-        miniInfo['IMDB'] = r['Value']
-      elif r['Source'] == 'Rotten Tomatoes':
-        miniInfo['RT'] = r['Value']
-
   # Look for dates
   dates = html.xpath('//span[@class="start-date"]/text()')
   for d in dates:
@@ -350,7 +372,7 @@ def parseMovieInfo (omdb, html, bigDict):
     miniInfo['Date'] = dObj.strftime('%d %b')
     miniInfo['Time'] = dObj.strftime('%H:%M')
 
-    movieInfo.append(miniInfo)
+    movieInfo.append(miniInfo.copy())
 
   return movieInfo
 
@@ -378,7 +400,7 @@ def writeCsv (fName, listDict):
   with open(fName, 'w', newline='') as csvfile:
     cwr = csv.writer(csvfile)
 
-    # Get header
+    # Write header
     cwr.writerow(keys)
 
     # Build/write rows
@@ -389,46 +411,44 @@ def writeCsv (fName, listDict):
   return 'Ok!'
 
 
-def traverseMovies (chrome, omdb, baseUrl, fList, fGenre, fSeries, fThemes, fOut):
+def traverseMovies (chrome, baseUrl, fList, fGenre, fSeries, fThemes, fRatings, fOut):
   """Get get movie info from list of URL
   """
 
-  # Load list
-  listMovies = []
-  with open(fList, 'r') as f:
-    for line in f:
-      line = line.strip()
-      if line == '':
-        break
-
-      listMovies.append(line)
-
   bigDict = {}
+
+  # Load data
   dictFiles = {
-    'Genre' : fGenre,
-    'Series' : fSeries,
-    'Themes' : fThemes
+    'URL'     : fList,
+    'Genre'   : fGenre,
+    'Series'  : fSeries,
+    'Themes'  : fThemes,
+    'Ratings' : fRatings
   }
   for key in dictFiles:
-    bigDict[key] = {}
+    if key == 'Ratings':
+      bigDict['IMDB'] = {}
+      bigDict['RT']   = {}
+    else:
+      bigDict[key] = {}
+
     with open(dictFiles[key], 'r') as csvfile:
-      crd = csv.reader(csvfile)
-
-      for line in crd:
+      for line in csv.reader(csvfile):
         line = [l.strip() for l in line]
-        if line[0] == '':
-          break
-
-        bigDict[key][line[0]] = line[1]
+        if line[0] != '':
+          if key == 'Ratings':
+            bigDict['IMDB'][line[0]] = line[1]
+            bigDict['RT'][line[0]]   = line[2]
+          else:
+            bigDict[key][line[0]] = line[1]
 
   # Parse for movie info
   listDictMovies = []
-  for url in listMovies:
+  for url in bigDict['URL'].values():
     page = getPage(chrome, url)
-    lm = parseMovieInfo(omdb, page, bigDict)
-    for l in lm:
-      l['URL'] = url
-      listDictMovies.append(l)
+    lm = parseMovieInfo(page, bigDict)
+    listDictMovies.extend(lm)
+    break
 
   # Write to csv
   writeCsv(fOut, listDictMovies)
@@ -440,9 +460,10 @@ if __name__ == '__main__':
   baseUrl = 'https://www.viff.org/Online'
   cc = startSession()
   oa = omdb.Api(apikey='5dcad8c4')
-  print(compileListMovies(cc, baseUrl, 'movies.csv'))
-  print(compileListGenres(cc, baseUrl, 'genres.csv'))
-  print(compileListSeries(cc, baseUrl, 'series.csv'))
-  print(compileListThemes(cc, baseUrl, 'themes.csv'))
-  #print(traverseMovies(cc, oa, baseUrl, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'output.csv'))
+  #print(compileListMovies(cc, baseUrl, 'movies.csv'))
+  #print(compileListGenres(cc, baseUrl, 'genres.csv'))
+  #print(compileListSeries(cc, baseUrl, 'series.csv'))
+  #print(compileListThemes(cc, baseUrl, 'themes.csv'))
+  #print(compileListRatings(oa, 'movies.csv', 'ratings.csv'))
+  print(traverseMovies(cc, baseUrl, 'movies.csv', 'genres.csv', 'series.csv', 'themes.csv', 'ratings.csv', 'output.csv'))
 
